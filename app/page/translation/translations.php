@@ -1,60 +1,61 @@
 <?php
 session_start();
-require __DIR__ . '/../../../config/bd.php'; // Подключение к базе данных через PDO
+require __DIR__ . '/../../../config/bd.php'; // Подключение к БД
 
-// Переменные для сообщения
-$message = $_SESSION['message'] ?? '';
-$alertType = $_SESSION['alertType'] ?? '';
+// Инициализация переменных
+$keyName = $_GET['key_name'] ?? '';
+$translations = [
+    'ru' => '',
+    'uz' => '',
+    'en' => ''
+];
 
-unset($_SESSION['message'], $_SESSION['alertType']); // Очищаем сообщения после отображения
-
-// Если форма отправлена
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Извлечение данных из POST-запроса
-    $title = $_POST['title'] ?? '';
-    $heading = $_POST['heading'] ?? '';
-    $content = $_POST['content'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $url = $_POST['url'] ?? '';
-
-    try {
-        // Вставка данных в таблицу
-        $sql = "INSERT INTO site_text (title, heading, content, description, url) VALUES (?, ?, ?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$title, $heading, $content, $description, $url]);
-
-        // Устанавливаем сообщение об успешном добавлении
-        $_SESSION['message'] = "Текст успешно добавлен!";
-        $_SESSION['alertType'] = 'success';
-
-        // Перенаправляем на ту же страницу для предотвращения повторного добавления
-        header('Location: ' . $_SERVER['PHP_SELF']);
-        exit();
-    } catch (PDOException $e) {
-        // Устанавливаем сообщение об ошибке
-        $_SESSION['message'] = "Ошибка при добавлении данных: " . $e->getMessage();
-        $_SESSION['alertType'] = 'danger';
-
-        // Перенаправляем на ту же страницу для отображения ошибки
-        header('Location: ' . $_SERVER['PHP_SELF']);
-        exit();
+// Если передан ключ, загружаем переводы
+if ($keyName) {
+    $stmt = $pdo->prepare("SELECT lang_code, translation_text FROM translations WHERE key_name = ?");
+    $stmt->execute([$keyName]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($rows as $row) {
+        $translations[$row['lang_code']] = $row['translation_text'];
     }
+}
+
+// Обработка формы для сохранения переводов
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $keyName = $_POST['key_name'];
+    $translations = [
+        'ru' => $_POST['translation_ru'],
+        'uz' => $_POST['translation_uz'],
+        'en' => $_POST['translation_en']
+    ];
+
+    // Удаляем старые записи перед сохранением новых
+    $stmt = $pdo->prepare("DELETE FROM translations WHERE key_name = ?");
+    $stmt->execute([$keyName]);
+
+    // Вставляем новые переводы
+    $stmt = $pdo->prepare("INSERT INTO translations (key_name, lang_code, translation_text) VALUES (?, ?, ?)");
+    foreach ($translations as $lang => $text) {
+        $stmt->execute([$keyName, $lang, $text]);
+    }
+
+    // Перенаправляем на страницу со всеми переводами
+    header("Location: all_translations.php");
+    exit;
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Добавление текста</title>
+    <title>Редактирование переводов</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../../public/css/sidebarr.css">
 </head>
-
 <body class="d-flex">
-
 <div class="sidebar d-flex flex-column flex-shrink-0 p-3 bg-dark text-white" style="width: 280px; height:100vh">
         <a href="../admin_panel.php" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
             <svg class="bi pe-none me-2" width="40" height="32">
@@ -92,12 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <path d="M14.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5zm-13-1A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2z" />
                     <path d="M3 5.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M3 8a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 8m0 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5" />
                 </svg>
-                <a href="#" class="dropdown-toggle btn btn-toggle align-items-center text-white rounded" role="button" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <a href="../text/all_text.php" class="dropdown-toggle btn btn-toggle align-items-center text-white rounded" role="button" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                     Текст
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="adminDropdown">
-                    <li><a href="./add_text.php" class="dropdown-item">Добавить текст</a></li>
-                    <li><a href="./all_text.php" class="dropdown-item">Все тексты</a></li>
+                    <li><a href="../text/add_text.php" class="dropdown-item">Добавить текст</a></li>
+                    <li><a href="../text/all_text.php" class="dropdown-item">Все тексты</a></li>
                 </ul>
             </li>
             <hr>
@@ -110,11 +111,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     Переводчик
                 </a>
                 <ul class="dropdown-menu" aria-labelledby="adminDropdown">
-                    <li><a href="../translation/translations.php" class="dropdown-item">Добавить перевод</a></li>
-                    <li><a href="../translation/all_translations.php" class="dropdown-item">Все переводы</a></li>
+                    <li><a href="./translations.php" class="dropdown-item">Добавить перевод</a></li>
+                    <li><a href="./all_translations.php" class="dropdown-item">Все переводы</a></li>
                 </ul>
             </li>
         </ul>
+     
         <hr>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
@@ -133,45 +135,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </ul>
         </div>
     </div>
-
     <div class="container-fluid mt-5">
-        <h2>Добавить текст</h2>
-        <?php if (!empty($message)): ?>
-            <div class="alert alert-<?= htmlspecialchars($alertType) ?> alert-dismissible fade show" role="alert">
-                <?= htmlspecialchars($message) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
+    <h2>Редактирование переводов</h2>
 
-        <form method="POST">
-            <div class="mb-3">
-                <label for="title" class="form-label">Заголовок</label>
-                <input type="text" id="title" name="title" class="form-control">
-            </div>
-            <div class="mb-3">
-                <label for="heading" class="form-label">Подзаголовок</label>
-                <input type="text" id="heading" name="heading" class="form-control">
-            </div>
-            <div class="mb-3">
-                <label for="description" class="form-label">Описание</label>
-                <textarea id="description" name="description" class="form-control" rows="3"></textarea>
-            </div>
-            <div class="mb-3">
-                <label for="url" class="form-label">Ссылка</label>
-                <input type="text" id="url" name="url" class="form-control" placeholder="Введите URL">
-            </div>
-            <div class="mb-3">
-                <label for="content" class="form-label">Текст</label>
-                <textarea id="content" name="content" class="form-control" rows="5"></textarea>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Добавить</button>
-        </form>
-
-        <a href="./all_text.php" class="btn btn-secondary mt-3">Просмотреть все тексты</a>
+<form method="POST">
+    <div class="mb-3">
+        <label for="key_name" class="form-label">Ключ текста</label>
+        <input type="text" id="key_name" name="key_name" class="form-control" 
+               value="<?= htmlspecialchars($keyName) ?>" required>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    <div class="mb-3">
+        <label for="translation_ru" class="form-label">Русский</label>
+        <input type="text" id="translation_ru" name="translation_ru" class="form-control" 
+               value="<?= htmlspecialchars($translations['ru']) ?>">
+    </div>
 
+    <div class="mb-3">
+        <label for="translation_uz" class="form-label">Узбекский</label>
+        <input type="text" id="translation_uz" name="translation_uz" class="form-control" 
+               value="<?= htmlspecialchars($translations['uz']) ?>">
+    </div>
+
+    <div class="mb-3">
+        <label for="translation_en" class="form-label">Английский</label>
+        <input type="text" id="translation_en" name="translation_en" class="form-control" 
+               value="<?= htmlspecialchars($translations['en']) ?>">
+    </div>
+
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</form>
+    </div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>
